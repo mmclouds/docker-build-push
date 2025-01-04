@@ -31,24 +31,12 @@ on:
           - dockerhub
           - aliyun
         default: 'dockerhub'
-      # 是否为私有仓库
+      # 是否为私有仓库（仅适用于 DockerHub）
       is_private:
-        description: '是否设置为私有'
-        required: true
+        description: '是否设置为私有（仅适用于 DockerHub）'
+        required: false
         type: boolean
         default: false
-      # 阿里云镜像仓库地域（如果选择阿里云则必填）
-      aliyun_region:
-        description: '阿里云镜像仓库地域（例如：cn-hangzhou）'
-        required: false
-        type: string
-        default: cn-hangzhou
-      # 阿里云镜像仓库命名空间（如果选择阿里云则必填）
-      aliyun_namespace:
-        description: '阿里云镜像仓库命名空间'
-        required: false
-        type: string
-        default: mmclouds
 
 jobs:
   build:
@@ -136,14 +124,8 @@ jobs:
       run: |
         if [ "${{ github.event.inputs.registry_type }}" = "aliyun" ]; then
           # 阿里云镜像仓库
-          if [ "${{ github.event.inputs.is_private }}" = "true" ]; then
-            # 私有仓库
-            echo "REGISTRY_URL=registry.${{ github.event.inputs.aliyun_region }}.aliyuncs.com" >> $GITHUB_ENV
-          else
-            # 公有仓库
-            echo "REGISTRY_URL=registry-vpc.${{ github.event.inputs.aliyun_region }}.aliyuncs.com" >> $GITHUB_ENV
-          fi
-          echo "IMAGE_PATH=${{ github.event.inputs.aliyun_namespace }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+          echo "REGISTRY_URL=registry.${{ secrets.ALIYUN_REGION }}.aliyuncs.com" >> $GITHUB_ENV
+          echo "IMAGE_PATH=${{ secrets.ALIYUN_NAMESPACE }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
         else
           # DockerHub
           echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
