@@ -52,6 +52,9 @@ jobs:
           REPO_URL=$(echo $REPO_URL | sed -E 's/.*github.com[\/:]([^\/]+\/[^\/]+)(\.git)?$/\1/')
         fi
         echo "REPO_NAME=$REPO_URL" >> $GITHUB_ENV
+        # 提取仓库名称（不包含所有者）
+        REPO_SIMPLE_NAME=$(echo $REPO_URL | sed -E 's/.*\/([^\/]+)$/\1/')
+        echo "DOCKER_IMAGE_NAME=$REPO_SIMPLE_NAME" >> $GITHUB_ENV
         
     # 步骤2: 检出指定的GitHub仓库代码
     - name: Checkout target repository
@@ -106,5 +109,5 @@ jobs:
         push: true
         # 设置镜像标签，格式为：仓库地址/用户名/仓库名:标签
         tags: |
-          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:latest
-          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ env.TIMESTAMP }}
+          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.TIMESTAMP }}
