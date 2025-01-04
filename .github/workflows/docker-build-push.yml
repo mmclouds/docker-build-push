@@ -33,7 +33,7 @@ on:
         default: 'dockerhub'
       # 是否为私有仓库
       is_private:
-        description: '是否推送到私有仓库（DockerHub 会自动创建私有仓库）'
+        description: '是否设置为私有'
         required: true
         type: boolean
         default: false
@@ -42,11 +42,13 @@ on:
         description: '阿里云镜像仓库地域（例如：cn-hangzhou）'
         required: false
         type: string
+        default: cn-hangzhou
       # 阿里云镜像仓库命名空间（如果选择阿里云则必填）
       aliyun_namespace:
         description: '阿里云镜像仓库命名空间'
         required: false
         type: string
+        default: mmclouds
 
 jobs:
   build:
