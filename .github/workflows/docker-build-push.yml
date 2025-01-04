@@ -33,7 +33,7 @@ on:
         default: 'dockerhub'
       # 是否为私有仓库
       is_private:
-        description: '是否推送到私有仓库'
+        description: '是否推送到私有仓库（DockerHub 会自动创建私有仓库）'
         required: true
         type: boolean
         default: false
@@ -87,7 +87,37 @@ jobs:
     - name: Set timestamp
       run: echo "TIMESTAMP=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
     
-    # 步骤5: 设置镜像仓库地址和标签
+    # 步骤5: 如果是 DockerHub 私有仓库，创建或更新仓库
+    - name: Create or update DockerHub repository if needed
+      if: ${{ github.event.inputs.registry_type == 'dockerhub' && github.event.inputs.is_private == 'true' }}
+      run: |
+        # 检查仓库是否存在
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "Authorization: JWT ${{ secrets.DOCKERHUB_TOKEN }}" \
+          "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}/")
+        
+        if [ "$STATUS" = "404" ]; then
+          # 如果仓库不存在，创建私有仓库
+          echo "创建新的私有仓库..."
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: JWT ${{ secrets.DOCKERHUB_TOKEN }}" \
+            -d "{\"name\": \"${{ env.DOCKER_IMAGE_NAME }}\", \"is_private\": true}" \
+            "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/"
+        elif [ "$STATUS" = "200" ]; then
+          # 如果仓库存在，更新为私有
+          echo "更新已存在的仓库为私有..."
+          curl -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "Authorization: JWT ${{ secrets.DOCKERHUB_TOKEN }}" \
+            -d "{\"is_private\": true}" \
+            "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}/"
+        else
+          echo "错误：无法访问 DockerHub API，状态码: $STATUS"
+          exit 1
+        fi
+    
+    # 步骤6: 设置镜像仓库地址和标签
     - name: Set registry URL and tags
       run: |
         if [ "${{ github.event.inputs.registry_type }}" = "aliyun" ]; then
@@ -106,7 +136,7 @@ jobs:
           echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
         fi
     
-    # 步骤6: 登录到镜像仓库
+    # 步骤7: 登录到镜像仓库
     - name: Login to Container Registry
       uses: docker/login-action@v2
       with:
@@ -114,11 +144,11 @@ jobs:
         username: ${{ github.event.inputs.registry_type == 'aliyun' && secrets.ALIYUN_USERNAME || secrets.DOCKERHUB_USERNAME }}
         password: ${{ github.event.inputs.registry_type == 'aliyun' && secrets.ALIYUN_PASSWORD || secrets.DOCKERHUB_TOKEN }}
         
-    # 步骤7: 设置Docker Buildx构建器
+    # 步骤8: 设置Docker Buildx构建器
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
       
-    # 步骤8: 构建并推送Docker镜像
+    # 步骤9: 构建并推送Docker镜像
     - name: Build and push
       uses: docker/build-push-action@v4
       with:
