@@ -7,7 +7,7 @@ on:
     inputs:
       # 需要构建的GitHub仓库地址
       repo_url:
-        description: 'GitHub 仓库地址 (格式: owner/repo)'
+        description: 'GitHub 仓库地址 (支持 owner/repo 或完整的 Git URL)'
         required: true
         type: string
       # 要构建的分支名称
@@ -43,15 +43,25 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # 步骤1: 检出指定的GitHub仓库代码
+    # 步骤1: 处理仓库地址格式
+    - name: Process repository URL
+      run: |
+        REPO_URL="${{ github.event.inputs.repo_url }}"
+        # 如果是完整的 Git URL，提取 owner/repo 部分
+        if [[ $REPO_URL == *"github.com"* ]]; then
+          REPO_URL=$(echo $REPO_URL | sed -E 's/.*github.com[\/:]([^\/]+\/[^\/]+)(\.git)?$/\1/')
+        fi
+        echo "REPO_NAME=$REPO_URL" >> $GITHUB_ENV
+        
+    # 步骤2: 检出指定的GitHub仓库代码
     - name: Checkout target repository
       uses: actions/checkout@v3
       with:
-        repository: ${{ github.event.inputs.repo_url }}
+        repository: ${{ env.REPO_NAME }}
         ref: ${{ github.event.inputs.branch }}
         token: ${{ secrets.GH_TOKEN }}
     
-    # 步骤2: 验证 Dockerfile 存在
+    # 步骤3: 验证 Dockerfile 存在
     - name: Verify Dockerfile exists
       run: |
         if [ ! -f "${{ github.event.inputs.dockerfile_path }}" ]; then
@@ -59,11 +69,11 @@ jobs:
           exit 1
         fi
     
-    # 步骤3: 设置时间戳变量
+    # 步骤4: 设置时间戳变量
     - name: Set timestamp
       run: echo "TIMESTAMP=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
     
-    # 步骤4: 设置镜像仓库地址变量
+    # 步骤5: 设置镜像仓库地址变量
     - name: Set registry URL
       run: |
         if [ "${{ github.event.inputs.registry_type }}" = "private" ]; then
@@ -72,7 +82,7 @@ jobs:
           echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
         fi
     
-    # 步骤5: 登录到镜像仓库
+    # 步骤6: 登录到镜像仓库
     - name: Login to Container Registry
       uses: docker/login-action@v2
       with:
@@ -80,11 +90,11 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
         
-    # 步骤6: 设置Docker Buildx构建器
+    # 步骤7: 设置Docker Buildx构建器
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
       
-    # 步骤7: 构建并推送Docker镜像
+    # 步骤8: 构建并推送Docker镜像
     - name: Build and push
       uses: docker/build-push-action@v4
       with:
