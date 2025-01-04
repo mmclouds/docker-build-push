@@ -49,7 +49,7 @@ jobs:
       with:
         repository: ${{ github.event.inputs.repo_url }}
         ref: ${{ github.event.inputs.branch }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_TOKEN }}
     
     # 步骤2: 验证 Dockerfile 存在
     - name: Verify Dockerfile exists
