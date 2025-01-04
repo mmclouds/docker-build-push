@@ -60,13 +60,25 @@ jobs:
     - name: Process repository URL
       run: |
         REPO_URL="${{ github.event.inputs.repo_url }}"
+        # 删除开头的 @ 符号（如果有）
+        REPO_URL=${REPO_URL#@}
+        # 删除结尾的 .git（如果有）
+        REPO_URL=${REPO_URL%.git}
+        
         # 如果是完整的 Git URL，提取 owner/repo 部分
         if [[ $REPO_URL == *"github.com"* ]]; then
-          REPO_URL=$(echo $REPO_URL | sed -E 's/.*github.com[\/:]([^\/]+\/[^\/]+)(\.git)?$/\1/')
+          if [[ $REPO_URL == *"https://github.com/"* ]]; then
+            # 处理 HTTPS URL 格式
+            REPO_URL=$(echo $REPO_URL | sed -E 's|https://github.com/(.+)|\1|')
+          elif [[ $REPO_URL == *"git@github.com:"* ]]; then
+            # 处理 SSH URL 格式
+            REPO_URL=$(echo $REPO_URL | sed -E 's|git@github.com:(.+)|\1|')
+          fi
         fi
+        
         echo "REPO_NAME=$REPO_URL" >> $GITHUB_ENV
         # 提取仓库名称（不包含所有者）
-        REPO_SIMPLE_NAME=$(echo $REPO_URL | sed -E 's/.*\/([^\/]+)$/\1/')
+        REPO_SIMPLE_NAME=$(echo $REPO_URL | sed -E 's|.*/([^/]+)$|\1|')
         echo "DOCKER_IMAGE_NAME=$REPO_SIMPLE_NAME" >> $GITHUB_ENV
         
     # 步骤2: 检出指定的GitHub仓库代码
