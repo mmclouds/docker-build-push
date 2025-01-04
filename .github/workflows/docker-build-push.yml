@@ -30,8 +30,13 @@ on:
         options:
           - dockerhub
           - aliyun
-          - private
         default: 'dockerhub'
+      # 是否为私有仓库
+      is_private:
+        description: '是否推送到私有仓库'
+        required: true
+        type: boolean
+        default: false
       # 阿里云镜像仓库地域（如果选择阿里云则必填）
       aliyun_region:
         description: '阿里云镜像仓库地域（例如：cn-hangzhou）'
@@ -40,11 +45,6 @@ on:
       # 阿里云镜像仓库命名空间（如果选择阿里云则必填）
       aliyun_namespace:
         description: '阿里云镜像仓库命名空间'
-        required: false
-        type: string
-      # 私有仓库地址（如果选择私有仓库则必填）
-      private_registry:
-        description: '私有仓库地址（例如：registry.example.com）'
         required: false
         type: string
 
@@ -90,22 +90,21 @@ jobs:
     # 步骤5: 设置镜像仓库地址和标签
     - name: Set registry URL and tags
       run: |
-        case "${{ github.event.inputs.registry_type }}" in
-          "aliyun")
-            # 阿里云镜像仓库地址格式：registry.{region}.aliyuncs.com
+        if [ "${{ github.event.inputs.registry_type }}" = "aliyun" ]; then
+          # 阿里云镜像仓库
+          if [ "${{ github.event.inputs.is_private }}" = "true" ]; then
+            # 私有仓库
             echo "REGISTRY_URL=registry.${{ github.event.inputs.aliyun_region }}.aliyuncs.com" >> $GITHUB_ENV
-            echo "IMAGE_PATH=${{ github.event.inputs.aliyun_namespace }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
-            ;;
-          "private")
-            echo "REGISTRY_URL=${{ github.event.inputs.private_registry }}" >> $GITHUB_ENV
-            echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
-            ;;
-          *)
-            # 默认使用 DockerHub
-            echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
-            echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
-            ;;
-        esac
+          else
+            # 公有仓库
+            echo "REGISTRY_URL=registry-vpc.${{ github.event.inputs.aliyun_region }}.aliyuncs.com" >> $GITHUB_ENV
+          fi
+          echo "IMAGE_PATH=${{ github.event.inputs.aliyun_namespace }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+        else
+          # DockerHub
+          echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
+          echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+        fi
     
     # 步骤6: 登录到镜像仓库
     - name: Login to Container Registry
