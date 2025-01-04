@@ -22,15 +22,26 @@ on:
         required: true
         default: './Dockerfile'
         type: string
-      # 选择推送到私有还是公有仓库
+      # 选择推送到的镜像仓库类型
       registry_type:
-        description: '镜像仓库类型 (public/private)'
+        description: '镜像仓库类型'
         required: true
         type: choice
         options:
-          - public
+          - dockerhub
+          - aliyun
           - private
-        default: 'public'
+        default: 'dockerhub'
+      # 阿里云镜像仓库地域（如果选择阿里云则必填）
+      aliyun_region:
+        description: '阿里云镜像仓库地域（例如：cn-hangzhou）'
+        required: false
+        type: string
+      # 阿里云镜像仓库命名空间（如果选择阿里云则必填）
+      aliyun_namespace:
+        description: '阿里云镜像仓库命名空间'
+        required: false
+        type: string
       # 私有仓库地址（如果选择私有仓库则必填）
       private_registry:
         description: '私有仓库地址（例如：registry.example.com）'
@@ -76,22 +87,33 @@ jobs:
     - name: Set timestamp
       run: echo "TIMESTAMP=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
     
-    # 步骤5: 设置镜像仓库地址变量
-    - name: Set registry URL
+    # 步骤5: 设置镜像仓库地址和标签
+    - name: Set registry URL and tags
       run: |
-        if [ "${{ github.event.inputs.registry_type }}" = "private" ]; then
-          echo "REGISTRY_URL=${{ github.event.inputs.private_registry }}" >> $GITHUB_ENV
-        else
-          echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
-        fi
+        case "${{ github.event.inputs.registry_type }}" in
+          "aliyun")
+            # 阿里云镜像仓库地址格式：registry.{region}.aliyuncs.com
+            echo "REGISTRY_URL=registry.${{ github.event.inputs.aliyun_region }}.aliyuncs.com" >> $GITHUB_ENV
+            echo "IMAGE_PATH=${{ github.event.inputs.aliyun_namespace }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+            ;;
+          "private")
+            echo "REGISTRY_URL=${{ github.event.inputs.private_registry }}" >> $GITHUB_ENV
+            echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+            ;;
+          *)
+            # 默认使用 DockerHub
+            echo "REGISTRY_URL=docker.io" >> $GITHUB_ENV
+            echo "IMAGE_PATH=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_ENV
+            ;;
+        esac
     
     # 步骤6: 登录到镜像仓库
     - name: Login to Container Registry
       uses: docker/login-action@v2
       with:
         registry: ${{ env.REGISTRY_URL }}
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: ${{ github.event.inputs.registry_type == 'aliyun' && secrets.ALIYUN_USERNAME || secrets.DOCKERHUB_USERNAME }}
+        password: ${{ github.event.inputs.registry_type == 'aliyun' && secrets.ALIYUN_PASSWORD || secrets.DOCKERHUB_TOKEN }}
         
     # 步骤7: 设置Docker Buildx构建器
     - name: Set up Docker Buildx
@@ -107,7 +129,7 @@ jobs:
         context: .
         # 启用推送到镜像仓库
         push: true
-        # 设置镜像标签，格式为：仓库地址/用户名/仓库名:标签
+        # 设置镜像标签
         tags: |
-          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-          ${{ env.REGISTRY_URL }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.TIMESTAMP }}
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_PATH }}:latest
+          ${{ env.REGISTRY_URL }}/${{ env.IMAGE_PATH }}:${{ env.TIMESTAMP }}
